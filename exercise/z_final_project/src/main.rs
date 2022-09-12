@@ -25,153 +25,225 @@
 //
 //     let positive_number: u32 = some_string.parse().expect("Failed to parse a number");
 
+use clap::{Parser, Subcommand};
+
+#[derive(Parser)]
+#[clap(author, version, about, long_about = None)]
+struct Cli {
+    #[clap(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    Blur {
+        infile: String,
+        outfile: String,
+        blur_amount: Option<f32>,
+    },
+    Brighten {
+        infile: String,
+        outfile: String,
+        brightness_amount: Option<i32>,
+    },
+    Rotate {
+        infile: String,
+        outfile: String,
+        rotation_amount: u32,
+    },
+    Invert {
+        infile: String,
+        outfile: String,
+    },
+    Crop {
+        infile: String,
+        outfile: String,
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
+    },
+    Grayscale {
+        infile: String,
+        outfile: String,
+    },
+    Generate {
+        outfile: String,
+        width: u32,
+        height: u32,
+        #[clap(arg_enum, value_parser)]
+        stripe_orientation: StripeOrientation,
+        colors: Vec<String>,
+    },
+    Fractal {
+        outfile: String,
+    },
+}
+
 fn main() {
-    // 1. First, you need to implement some basic command-line argument handling
-    // so you can make your program do different things.  Here's a little bit
-    // to get you started doing manual parsing.
-    //
-    // Challenge: If you're feeling really ambitious, you could delete this code
-    // and use the "clap" library instead: https://docs.rs/clap/2.32.0/clap/
-    let mut args: Vec<String> = std::env::args().skip(1).collect();
-    if args.is_empty() {
-        print_usage_and_exit();
-    }
-    let subcommand = args.remove(0);
-    match subcommand.as_str() {
-        // EXAMPLE FOR CONVERSION OPERATIONS
-        "blur" => {
-            if args.len() != 2 {
-                print_usage_and_exit();
-            }
-            let infile = args.remove(0);
-            let outfile = args.remove(0);
-            // **OPTION**
-            // Improve the blur implementation -- see the blur() function below
-            blur(infile, outfile);
+    let args = Cli::parse();
+
+    match args.command {
+        Commands::Blur {
+            infile,
+            outfile,
+            blur_amount,
+        } => {
+            let blur_amount = if let Some(blur_amount) = blur_amount {
+                blur_amount
+            } else {
+                2.0
+            };
+            blur(infile, outfile, blur_amount);
         }
 
-        // **OPTION**
-        // Brighten -- see the brighten() function below
+        Commands::Brighten {
+            infile,
+            outfile,
+            brightness_amount,
+        } => {
+            let brightness_amount = if let Some(brightness_amount) = brightness_amount {
+                brightness_amount
+            } else {
+                10
+            };
+            brighten(infile, outfile, brightness_amount);
+        }
 
-        // **OPTION**
-        // Crop -- see the crop() function below
+        Commands::Rotate {
+            infile,
+            outfile,
+            rotation_amount,
+        } => {
+            rotate(infile, outfile, rotation_amount);
+        }
 
-        // **OPTION**
-        // Rotate -- see the rotate() function below
+        Commands::Grayscale { infile, outfile } => {
+            grayscale(infile, outfile);
+        }
 
-        // **OPTION**
-        // Invert -- see the invert() function below
+        Commands::Crop {
+            infile,
+            outfile,
+            x,
+            y,
+            width,
+            height,
+        } => {
+            crop(infile, outfile, x, y, width, height);
+        }
 
-        // **OPTION**
-        // Grayscale -- see the grayscale() function below
+        Commands::Generate {
+            outfile,
+            width,
+            height,
+            stripe_orientation,
+            colors,
+        } => {
+            let colors = colors
+                .iter()
+                .map(|color_string| {
+                    let split_vals = color_string.split(":");
+                    let vec_vals = split_vals.collect::<Vec<&str>>();
 
-        // A VERY DIFFERENT EXAMPLE...a really fun one. :-)
-        "fractal" => {
-            if args.len() != 1 {
-                print_usage_and_exit();
-            }
-            let outfile = args.remove(0);
+                    Color {
+                        red: vec_vals[0].parse::<u8>().unwrap(),
+                        green: vec_vals[1].parse::<u8>().unwrap(),
+                        blue: vec_vals[2].parse::<u8>().unwrap(),
+                    }
+                })
+                .collect::<Vec<Color>>();
+
+            generate(outfile, width, height, colors, stripe_orientation);
+        }
+
+        Commands::Invert { infile, outfile } => {
+            invert(infile, outfile);
+        }
+
+        Commands::Fractal { outfile } => {
             fractal(outfile);
         }
-
-        // **OPTION**
-        // Generate -- see the generate() function below -- this should be sort of like "fractal()"!
-
-        // For everything else...
-        _ => {
-            print_usage_and_exit();
-        }
     }
 }
 
-fn print_usage_and_exit() {
-    println!("USAGE (when in doubt, use a .png extension on your filenames)");
-    println!("blur INFILE OUTFILE");
-    println!("fractal OUTFILE");
-    // **OPTION**
-    // Print useful information about what subcommands and arguments you can use
-    // println!("...");
-    std::process::exit(-1);
-}
-
-fn blur(infile: String, outfile: String) {
-    // Here's how you open an existing image file
+fn blur(infile: String, outfile: String, blur_amount: f32) {
     let img = image::open(infile).expect("Failed to open INFILE.");
-    // **OPTION**
-    // Parse the blur amount (an f32) from the command-line and pass it through
-    // to this function, instead of hard-coding it to 2.0.
-    let img2 = img.blur(2.0);
-    // Here's how you save an image to a file.
-    img2.save(outfile).expect("Failed writing OUTFILE.");
+    img.blur(blur_amount)
+        .save(outfile)
+        .expect("Failed writing OUTFILE.");
 }
 
-fn brighten(infile: String, outfile: String) {
-    // See blur() for an example of how to open / save an image.
-
-    // .brighten() takes one argument, an i32.  Positive numbers brighten the
-    // image. Negative numbers darken it.  It returns a new image.
-
-    // Challenge: parse the brightness amount from the command-line and pass it
-    // through to this function.
+fn brighten(infile: String, outfile: String, brightness_amount: i32) {
+    let img = image::open(infile).expect("Failed to open INFILE.");
+    img.brighten(brightness_amount)
+        .save(outfile)
+        .expect("Failed writing OUTFILE.");
 }
 
-fn crop(infile: String, outfile: String) {
-    // See blur() for an example of how to open an image.
-
-    // .crop() takes four arguments: x: u32, y: u32, width: u32, height: u32
-    // You may hard-code them, if you like.  It returns a new image.
-
-    // Challenge: parse the four values from the command-line and pass them
-    // through to this function.
-
-    // See blur() for an example of how to save the image.
+fn crop(infile: String, outfile: String, x: u32, y: u32, width: u32, height: u32) {
+    let mut img = image::open(infile).expect("Failed to open INFILE.");
+    img.crop(x, y, width, height)
+        .save(outfile)
+        .expect("Failed writing OUTFILE.");
 }
 
-fn rotate(infile: String, outfile: String) {
-    // See blur() for an example of how to open an image.
+fn rotate(infile: String, outfile: String, rotation_amount: u32) {
+    let img = image::open(infile).expect("Failed to open INFILE.");
 
-    // There are 3 rotate functions to choose from (all clockwise):
-    //   .rotate90()
-    //   .rotate180()
-    //   .rotate270()
-    // All three methods return a new image.  Pick one and use it!
-
-    // Challenge: parse the rotation amount from the command-line, pass it
-    // through to this function to select which method to call.
-
-    // See blur() for an example of how to save the image.
+    match rotation_amount {
+        90 => img.rotate90(),
+        180 => img.rotate180(),
+        270 => img.rotate270(),
+        _ => panic!("{} is not a valid rotation amount!", rotation_amount),
+    }
+    .save(outfile)
+    .expect("Failed writing OUTFILE.");
 }
 
 fn invert(infile: String, outfile: String) {
-    // See blur() for an example of how to open an image.
-
-    // .invert() takes no arguments and converts the image in-place, so you
-    // will use the same image to save out to a different file.
-
-    // See blur() for an example of how to save the image.
+    let mut img = image::open(infile).expect("Failed to open INFILE.");
+    img.invert();
+    img.save(outfile).expect("Failed writing OUTFILE.");
 }
 
 fn grayscale(infile: String, outfile: String) {
-    // See blur() for an example of how to open an image.
-
-    // .grayscale() takes no arguments. It returns a new image.
-
-    // See blur() for an example of how to save the image.
+    let img = image::open(infile).expect("Failed to open INFILE.");
+    img.grayscale()
+        .save(outfile)
+        .expect("Failed writing OUTFILE.");
 }
 
-fn generate(outfile: String) {
-    // Create an ImageBuffer -- see fractal() for an example
+struct Color {
+    red: u8,
+    green: u8,
+    blue: u8,
+}
 
-    // Iterate over the coordinates and pixels of the image -- see fractal() for an example
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, clap::ValueEnum)]
+enum StripeOrientation {
+    Vertical,
+    Horizontal,
+}
 
-    // Set the image to some solid color. -- see fractal() for an example
+fn generate(
+    outfile: String,
+    width: u32,
+    height: u32,
+    colors: Vec<Color>,
+    stripe_orientation: StripeOrientation,
+) {
+    let mut imgbuf = image::ImageBuffer::new(width, height);
+    for (x, y, pixel) in imgbuf.enumerate_pixels_mut() {
+        let color_index = match stripe_orientation {
+            StripeOrientation::Vertical => (x as usize) / ((width as usize) / colors.len()),
+            StripeOrientation::Horizontal => (y as usize) / ((height as usize) / colors.len()),
+        };
+        let curr_color = &colors[color_index];
+        *pixel = image::Rgb([curr_color.red, curr_color.green, curr_color.blue]);
+    }
 
-    // Challenge: parse some color data from the command-line, pass it through
-    // to this function to use for the solid color.
-
-    // Challenge 2: Generate something more interesting!
-
-    // See blur() for an example of how to save the image
+    imgbuf.save(outfile).unwrap();
 }
 
 // This code was adapted from https://github.com/PistonDevelopers/image
